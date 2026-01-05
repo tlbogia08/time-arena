@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Time Arena - Multi-User</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #0d0d0d; color: #e5e5e5; font-family: 'Inter', sans-serif; overflow: hidden; }
+        .card { background-color: #1a1a1a; border: 1px solid #333; }
+        .timer-svg { transform: rotate(-90deg); }
+        .timer-circle-progress { fill: none; stroke: #f97316; stroke-width: 8; stroke-linecap: round; transition: stroke-dashoffset 1s linear; }
+        #focus-overlay { display: none; backdrop-filter: blur(20px); background: rgba(10, 10, 10, 0.98); }
+        #auth-modal { display: flex; backdrop-filter: blur(10px); background: rgba(0,0,0,0.8); }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body class="flex h-screen">
+
+    <div id="auth-modal" class="fixed inset-0 z-[100] items-center justify-center">
+        <div class="card p-8 rounded-2xl w-96">
+            <h2 id="auth-title" class="text-2xl font-bold mb-6 text-orange-500">Login to Time Arena</h2>
+            <input id="auth-user" type="text" placeholder="Username" class="w-full bg-gray-900 border border-gray-700 p-3 rounded-lg mb-4 outline-none">
+            <input id="auth-pass" type="password" placeholder="Password" class="w-full bg-gray-900 border border-gray-700 p-3 rounded-lg mb-6 outline-none">
+            <button onclick="handleAuthAction()" id="auth-main-btn" class="w-full bg-orange-600 py-3 rounded-lg font-bold mb-4">Login</button>
+            <p class="text-center text-sm text-gray-500">
+                <span id="auth-switch-text">Don't have an account?</span> 
+                <button onclick="toggleAuthMode()" class="text-orange-500 underline ml-1">Switch</button>
+            </p>
+        </div>
+    </div>
+
+    <aside class="w-64 border-r border-gray-800 p-6 flex flex-col justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-orange-500 mb-10">⏳ Time Arena</h1>
+            <nav class="flex flex-col gap-4">
+                <a href="index.html" class="p-3 bg-gray-800 rounded-lg border-l-4 border-orange-500">Timer</a>
+                <a href="history.html" class="p-3 hover:bg-gray-800 rounded-lg transition text-gray-400">Activity History</a>
+            </nav>
+        </div>
+        <div class="border-t border-gray-800 pt-4">
+            <p id="logged-user" class="text-sm font-medium text-orange-400 font-bold mb-1"></p>
+            <button onclick="logout()" class="text-xs text-gray-500 hover:text-white underline">Logout</button>
+        </div>
+    </aside>
+
+    <main class="flex-1 p-12">
+        <h2 class="text-3xl font-bold mb-8">Focus Timer</h2>
+        <div class="card p-8 rounded-2xl max-w-2xl">
+            <div class="grid grid-cols-2 gap-6 mb-8">
+                <div>
+                    <label class="text-xs uppercase text-gray-500 mb-2 block">Duration</label>
+                    <select id="timer-select" class="w-full bg-gray-900 border border-gray-700 p-3 rounded-lg">
+                        <option value="1500">25 Minutes</option>
+                        <option value="3000">50 Minutes</option>
+                        <option value="5">5 Seconds (Test)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs uppercase text-gray-500 mb-2 block">Task</label>
+                    <input id="task-name" type="text" placeholder="e.g. Coding" class="w-full bg-gray-900 border border-gray-700 p-3 rounded-lg outline-none focus:border-orange-500">
+                </div>
+            </div>
+            <button onclick="startFocus()" class="w-full bg-orange-600 py-4 rounded-xl font-bold hover:bg-orange-500 transition shadow-lg">Enter Focus Mode</button>
+        </div>
+    </main>
+
+    <div id="focus-overlay" class="fixed inset-0 z-50 flex flex-col items-center justify-center">
+        <div class="relative flex items-center justify-center">
+            <svg class="timer-svg" width="360" height="360">
+                <circle cx="180" cy="180" r="160" fill="none" stroke="#222" stroke-width="8"></circle>
+                <circle id="progress-bar" class="timer-circle-progress" cx="180" cy="180" r="160" stroke-dasharray="1005" stroke-dashoffset="0"></circle>
+            </svg>
+            <div id="display-time" class="absolute text-6xl font-mono font-bold">25:00</div>
+        </div>
+        <button onclick="cancelFocus()" class="mt-12 text-gray-500 hover:text-white underline">Quit</button>
+    </div>
+
+    <script>
+        let isLoginMode = true;
+        let currentUser = JSON.parse(localStorage.getItem('current_user_session'));
+
+        // --- AUTH LOGIC ---
+        function checkLogin() {
+            if (currentUser) {
+                document.getElementById('auth-modal').classList.add('hidden');
+                document.getElementById('logged-user').innerText = `👤 ${currentUser.username}`;
+            }
+        }
+
+        function toggleAuthMode() {
+            isLoginMode = !isLoginMode;
+            document.getElementById('auth-title').innerText = isLoginMode ? "Login to Time Arena" : "Create Local Account";
+            document.getElementById('auth-main-btn').innerText = isLoginMode ? "Login" : "Sign Up";
+        }
+
+        function handleAuthAction() {
+            const user = document.getElementById('auth-user').value;
+            const pass = document.getElementById('auth-pass').value;
+            if(!user || !pass) return alert("Fill all fields");
+
+            let users = JSON.parse(localStorage.getItem('arena_users') || '[]');
+
+            if (isLoginMode) {
+                const found = users.find(u => u.username === user && u.password === pass);
+                if (found) {
+                    localStorage.setItem('current_user_session', JSON.stringify(found));
+                    location.reload();
+                } else alert("Invalid credentials");
+            } else {
+                if (users.find(u => u.username === user)) return alert("User exists");
+                const newUser = { username: user, password: pass, id: Date.now() };
+                users.push(newUser);
+                localStorage.setItem('arena_users', JSON.stringify(users));
+                alert("Account created! Now login.");
+                toggleAuthMode();
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('current_user_session');
+            location.reload();
+        }
+
+        // --- TIMER LOGIC ---
+        let timeLeft, totalTime, timerId;
+        function startFocus() {
+            timeLeft = parseInt(document.getElementById('timer-select').value);
+            totalTime = timeLeft;
+            document.getElementById('focus-overlay').style.display = "flex";
+            timerId = setInterval(() => {
+                timeLeft--;
+                const m = Math.floor(timeLeft/60), s = timeLeft%60;
+                document.getElementById('display-time').innerText = `${m}:${s<10?'0'+s:s}`;
+                document.getElementById('progress-bar').style.strokeDashoffset = 1005 - (timeLeft/totalTime)*1005;
+                if(timeLeft <= 0) {
+                    clearInterval(timerId);
+                    saveData();
+                }
+            }, 1000);
+        }
+
+        function saveData() {
+            const key = `sessions_${currentUser.id}`;
+            const sessions = JSON.parse(localStorage.getItem(key) || '[]');
+            sessions.push({ date: new Date().toISOString().split('T')[0], duration: Math.floor(totalTime/60) || 1 });
+            localStorage.setItem(key, JSON.stringify(sessions));
+            alert("Work Saved!");
+            location.href = "history.html";
+        }
+
+        function cancelFocus() { clearInterval(timerId); document.getElementById('focus-overlay').style.display = "none"; }
+        checkLogin();
+    </script>
+</body>
+</html>

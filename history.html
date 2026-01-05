@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>History - Time Arena</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #0d0d0d; color: #e5e5e5; font-family: 'Inter', sans-serif; }
+        .grid-container { 
+            display: grid; grid-template-columns: repeat(53, 1fr); 
+            grid-template-rows: repeat(7, 1fr); grid-auto-flow: column; gap: 3px; 
+        }
+        .sq { width: 12px; height: 12px; border-radius: 2px; background: #1a1a1a; }
+        .lv-1 { background: #0e4429; }
+        .lv-2 { background: #006d32; }
+        .lv-3 { background: #26a641; }
+        .lv-4 { background: #39d353; box-shadow: 0 0 10px #39d353; }
+        .month-label { font-size: 10px; color: #555; }
+    </style>
+</head>
+<body class="flex h-screen">
+    <aside class="w-64 border-r border-gray-800 p-6">
+        <h1 class="text-2xl font-bold text-orange-500 mb-10">⏳ Time Arena</h1>
+        <nav class="flex flex-col gap-4">
+            <a href="index.html" class="p-3 hover:bg-gray-800 rounded-lg text-gray-400">Timer</a>
+            <a href="history.html" class="p-3 bg-gray-800 rounded-lg border-l-4 border-orange-500">Activity History</a>
+        </nav>
+    </aside>
+
+    <main class="flex-1 p-12">
+        <h2 class="text-3xl font-bold mb-8">Activity Map</h2>
+        
+        <div class="bg-[#111] border border-gray-800 p-6 rounded-xl overflow-x-auto">
+            <div id="heatmap" class="grid-container"></div>
+            <div class="flex justify-end gap-2 mt-4 text-[10px] items-center">
+                <span>Less</span>
+                <div class="sq"></div><div class="sq lv-1"></div><div class="sq lv-2"></div><div class="sq lv-3"></div><div class="sq lv-4"></div>
+                <span>More</span>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-6 mt-8">
+            <div class="bg-[#111] p-6 rounded-xl border border-gray-800">
+                <p class="text-gray-500">Total Minutes Logged</p>
+                <h4 id="total-min" class="text-4xl font-bold mt-2">0</h4>
+            </div>
+            <div class="bg-[#111] p-6 rounded-xl border border-gray-800">
+                <p class="text-gray-500">Days Active</p>
+                <h4 id="active-days" class="text-4xl font-bold mt-2 text-orange-500">0</h4>
+            </div>
+        </div>
+    </main>
+
+<script>
+    const currentUser = JSON.parse(localStorage.getItem('current_user_session'));
+    
+    // Redirect if not logged in
+    if(!currentUser) {
+        alert("Please login first");
+        location.href = "index.html";
+    }
+
+    // Load user-specific key
+    const userKey = `sessions_${currentUser.id}`;
+    const sessions = JSON.parse(localStorage.getItem(userKey) || '[]');
+    
+    const stats = sessions.reduce((acc, s) => {
+        acc[s.date] = (acc[s.date] || 0) + s.duration;
+        return acc;
+    }, {});
+
+    const grid = document.getElementById('heatmap');
+    const start = new Date(new Date().getFullYear(), 0, 1);
+    
+    for(let i=0; i< 371; i++) {
+        const d = new Date(start);
+        d.setDate(start.getDate() + i);
+        const ds = d.toISOString().split('T')[0];
+        const mins = stats[ds] || 0;
+        
+        const sq = document.createElement('div');
+        sq.className = 'sq';
+        if(mins > 0) {
+            sq.className += mins < 30 ? ' lv-1' : mins < 60 ? ' lv-2' : mins < 120 ? ' lv-3' : ' lv-4';
+            sq.title = `${ds}: ${mins} mins`;
+        }
+        grid.appendChild(sq);
+    }
+
+    document.getElementById('total-min').innerText = Object.values(stats).reduce((a,b)=>a+b, 0);
+    document.getElementById('active-days').innerText = Object.keys(stats).length;
+</script>
+
+</body>
+</html>
